@@ -1,0 +1,13 @@
+- trips for today
+- filter out trips that have no shapes
+trips := make([]*Trip, len(feed.Trips))
+for _, trip := range feed.Trips {
+    if trip.RunsToday() {
+        trips = append(trips, trip)
+    }
+}
+  
+- stop times for trips with (departure|arrival-time > now-~1h) && (departure|arrival-time < now+~1h)
+
+            make trip instances
+                find between which stop time the vehicle is every second
