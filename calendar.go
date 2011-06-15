@@ -168,13 +168,12 @@ func (c *Calendar) setField(fieldName, val string) {
 }
 
 
-
 func TimeToStringDate(time *time.Time) string {
 	return time.Format("20060102")
 }
 
 func StringDateToTime(date string) (*time.Time, os.Error) {
-	return time.Parse("20060102", date)  // Time parsing almost sucks
+	return time.Parse("20060102", date) // Time parsing almost sucks
 }
 
 func stringDayDateComp(dateA, dateB string) int {

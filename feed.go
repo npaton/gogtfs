@@ -14,17 +14,18 @@ import (
 )
 
 type Feed struct {
-	loadedDate    time.Time
-	path          string // Feed's path on disk (zip or folder containing GTFS .txt files)
-	Agencies      map[string]*Agency
-	Stops         map[string]*Stop
-	Routes        map[string]*Route
-	Trips         map[string]*Trip
-	Services      map[string]*Service
-	Shapes        map[string]*Shape
-	Calendars     map[string]*Calendar
-	CalendarDates map[string]*CalendarDate
-	Loaded bool
+	loadedDate     time.Time
+	path           string // Feed's path on disk (zip or folder containing GTFS .txt files)
+	Agencies       map[string]*Agency
+	Stops          map[string]*Stop
+	Routes         map[string]*Route
+	Trips          map[string]*Trip
+	Services       map[string]*Service
+	Shapes         map[string]*Shape
+	Calendars      map[string]*Calendar
+	CalendarDates  map[string]*CalendarDate
+	Loaded         bool
+	StopTimesCount int
 }
 
 var RequiredFiles = []string{"agency.txt", "stops.txt", "routes.txt", "trips.txt", "stop_times.txt", "calendar.txt"}
@@ -42,13 +43,12 @@ func NewFeed(path string) (*Feed, os.Error) {
 		Shapes:        make(map[string]*Shape),
 		Calendars:     make(map[string]*Calendar),
 		CalendarDates: make(map[string]*CalendarDate),
-		Loaded: false,
+		Loaded:        false,
 	}
 
-	
 	return feed, nil
 }
-func (f *Feed)Reload() os.Error {
+func (f *Feed) Reload() os.Error {
 	f.Agencies = make(map[string]*Agency)
 	f.Stops = make(map[string]*Stop)
 	f.Routes = make(map[string]*Route)
@@ -61,9 +61,11 @@ func (f *Feed)Reload() os.Error {
 	return f.Load()
 }
 
-func (f *Feed)Load() os.Error {
-	if f.Loaded { return nil }
-	
+func (f *Feed) Load() os.Error {
+	if f.Loaded {
+		return nil
+	}
+
 	if filepath.Ext(f.path) == ".zip" {
 
 		zipReader, err := zip.OpenReader(f.path)
@@ -111,8 +113,10 @@ func (f *Feed)Load() os.Error {
 	}
 
 	// Color field copy from Routes to Shapes for json export
+	// And calculate the DayRange for each trip
 	for _, trip := range f.Trips {
 		trip.copyColorToShape()
+		trip.calculateDayTimeRange()
 	}
 
 	if len(f.Agencies) == 0 {
@@ -123,7 +127,7 @@ func (f *Feed)Load() os.Error {
 	log.Println("Stops count", len(f.Stops))
 	log.Println("Routes count", len(f.Routes))
 	log.Println("Trip count", len(f.Trips))
-	// log.Println("StopTimes count", len(f.StopTimes))
+	log.Println("StopTimes count", f.StopTimesCount)
 	log.Println("Shapes count", len(f.Shapes))
 	log.Println("Calendars count", len(f.Calendars))
 	log.Println("CalendarDates count", len(f.CalendarDates))
@@ -131,19 +135,20 @@ func (f *Feed)Load() os.Error {
 }
 
 
-func (feed *Feed) TripsForTimeAsDay(time *time.Time) []*Trip {
+func (feed *Feed) TripsForDay(time *time.Time) []*Trip {
 	return feed.TripsForStringDate(TimeToStringDate(time))
 }
 
 func (feed *Feed) TripsForStringDate(date string) []*Trip {
 	tripsos := make([]*Trip, 0, len(feed.Trips))
 	for _, trip := range feed.Trips {
-	    if trip.RunsOn(date) && trip.HasShape() {
-	        tripsos = append(tripsos, trip)
-	    }
+		if trip.RunsOn(date) && trip.HasShape() {
+			log.Println("Trip on", date+":", trip)
+			tripsos = append(tripsos, trip)
+		}
 	}
-	
-	// log.Println("Trips on", date+":", len(tripsos))
+
+	log.Println("Trips on", date+":", len(tripsos))
 	return tripsos
 }
 
@@ -240,6 +245,7 @@ func (feed *Feed) parseTxtFile(reader io.Reader, fileName string) (err os.Error)
 			fieldsSetter(stopTime, k, v)
 			// log.Println("  - stopTime:", stopTime)
 			if stopTime.Trip != nil {
+				feed.StopTimesCount = feed.StopTimesCount + 1
 				// log.Println("  - stopTime:", stopTime)
 				stopTime.Trip.AddStopTime(stopTime)
 			}

@@ -2,7 +2,7 @@
 <html>
     <head>
         <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
-        <title>GoGTFS -  hoho</title>
+        <title>GoGTFS</title>
         <link href="http://code.google.com/apis/maps/documentation/javascript/examples/default.css" rel="stylesheet" type="text/css" />
         <script type="text/javascript" src="http://maps.google.com/maps/api/js?sensor=false"></script>
         <script>
@@ -12,10 +12,10 @@
                 conn.onopen = function(evt) {
                     console.log("Connection opened. "+evt)
                     conn.send("Hi")
-                    setTimeout(function () {
-                        conn.send("Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.")
-                        // conn.send("Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.")
-                    }, 1500)
+                    // setTimeout(function () {
+                    //     conn.send("Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.")
+                    //     // conn.send("Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.")
+                    // }, 1500)
                 }
                 conn.onclose = function(evt) {
                     console.log("Connection closed. ")
@@ -28,7 +28,6 @@
         
             var map, agencyBounds, shapesHash, tripsHash;
             function initialize() {
-                return
                 agencyBounds = new google.maps.LatLngBounds();
                 var myLatLng = new google.maps.LatLng(0, 0);
                 var myOptions = {
@@ -47,34 +46,36 @@
 
         		        shapesHash = JSON.parse(req.responseText);
         		        for (var k in shapesHash) {
-        		            loadShape(shapesHash[k])
-            		        agencyBounds = agencyBounds.union(shapesHash[k].lineBounds)
+            		        agencyBounds = agencyBounds.union(loadShape(shapesHash[k]).lineBounds)
         		        }
+        		        console.log("agencyBounds:");
+        		        console.log(agencyBounds);
                         map.fitBounds(agencyBounds);
+                        map.panToBounds(agencyBounds);
         		    }
         		};
         		req.open("GET", "/shapes.json", true);
         		req.send("");
         		
-        		var reqB = new XMLHttpRequest();
-        		reqB.onreadystatechange = function () {
-        		    if (reqB.readyState == 4) {
-                        if (reqB.status != 200)
-                            alert(reqB.status)
-
-        		        var trips = JSON.parse(reqB.responseText);
-                        tripsHash = {}
-                        var count = 0
-        		        for (var i in trips) {
-            		        tripsHash[trips[i].ShapeId] = trips[i]
-            		        count = count + 1
-        		        }
-        		        console.log(tripsHash)
-        		        console.log(count)
-        		    }
-        		};
-        		reqB.open("GET", "/trips.json", true);
-        		reqB.send("");
+                // var reqB = new XMLHttpRequest();
+                // reqB.onreadystatechange = function () {
+                //     if (reqB.readyState == 4) {
+                //                         if (reqB.status != 200)
+                //                             alert(reqB.status)
+                // 
+                //         var trips = JSON.parse(reqB.responseText);
+                //                         tripsHash = {}
+                //                         var count = 0
+                //         for (var i in trips) {
+                //                          tripsHash[trips[i].ShapeId] = trips[i]
+                //                          count = count + 1
+                //         }
+                //         console.log(tripsHash)
+                //         console.log(count)
+                //     }
+                // };
+                // reqB.open("GET", "/trips.json", true);
+                // reqB.send("");
                 
             }
             

@@ -123,7 +123,6 @@ type StopTime struct {
 }
 
 
-
 func (st *StopTime) setField(fieldName, val string) {
 	// log.Println("setField", fieldName, value)
 	switch fieldName {

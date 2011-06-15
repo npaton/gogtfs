@@ -18,10 +18,10 @@ var (
 	pathsString = flag.String("d", "", "Directories containing gtfs txt or zip files or zip file path (directories are traversed, multi coma separated: \"/here,/there\")")
 	shouldLog   = flag.Bool("v", false, "Log to Stdout/err")
 	needHelp    = flag.Bool("h", false, "Displays this help message...")
-	listenAddr   = flag.String("http", ":8080", "HTTP listen address")
+	listenAddr  = flag.String("http", ":8080", "HTTP listen address")
 	prefPath    string
 	homeDir     string
-	feeds		map[string]*gtfs.Feed
+	feeds       map[string]*gtfs.Feed
 )
 
 func init() {
@@ -46,7 +46,6 @@ func discoverGtfsPaths(path string) (results []string) {
 	if err != nil {
 		return
 	}
-	
 
 	if fileInfo.IsDirectory() {
 		file, err := os.Open(path)
@@ -141,65 +140,86 @@ func main() {
 					} else {
 						feed.Load()
 						feeds[path] = feed
+						currentFeed = path
 					}
-					// totalStopTimes = totalStopTimes + len(feed.StopTimes)
+					totalStopTimes = totalStopTimes + feed.StopTimesCount
 					channel <- true
 				}(path, channel)
 			}
 		}
 	}
-	
-	go func() {
+
+	if *listenAddr != "-" {
+		go func() {
+			// Waiting for jobs to finnish
+			for _, c := range channels {
+				<-c
+			}
+
+			log.Println("Total StopTimes count", totalStopTimes)
+			log.Println("Finished")
+		}()
+
+		http.HandleFunc("/", Index)
+		http.HandleFunc("/shapes.json", Shapes)
+		http.HandleFunc("/trips.json", Trips)
+		http.Handle("/gtfs", websocket.Handler(GTFSSocket))
+		http.HandleFunc("/load", LoadFeed)
+
+		httpInitErr := http.ListenAndServe(*listenAddr, nil)
+		if httpInitErr != nil {
+			log.Printf("HTTP init error: %v\n", httpInitErr)
+		}
+
+	} else {
 		// Waiting for jobs to finnish
 		for _, c := range channels {
 			<-c
 		}
-
-		log.Println("Total StopTimes count", totalStopTimes)
-		log.Println("Finished")
-	}()
-	
-	http.HandleFunc("/", Index)
-	http.HandleFunc("/shapes.json", Shapes)
-	http.HandleFunc("/trips.json", Trips)
-	http.Handle("/gtfs", websocket.Handler(GTFSSocket));
-	http.HandleFunc("/load", LoadFeed);
-	
-	
-	
-	httpInitErr := http.ListenAndServe(*listenAddr, nil)
-	if httpInitErr != nil {
-		log.Printf("HTTP init error: %v\n", httpInitErr)
 	}
 }
 
 var currentFeed string
+
 func Index(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, "web/index.html")
 }
 
 
 func Shapes(w http.ResponseWriter, r *http.Request) {
-	if currentFeed == "" { fmt.Fprint(w, "{}"); return }
+	log.Println("Shapes")
+
+	if currentFeed == "" {
+		fmt.Fprint(w, "{}")
+		return
+	}
 	shapes, err := json.Marshal(feeds[currentFeed].Shapes)
-	
+
 	if err != nil {
 		panic(err)
 	}
 	fmt.Fprint(w, string(shapes))
+	log.Println("Shapes done")
 	return
-	
+
 }
 
 func Trips(w http.ResponseWriter, r *http.Request) {
-	if currentFeed == "" { fmt.Fprint(w, "{}"); return }
-	
-	trips, err := json.Marshal(feeds[currentFeed].TripsForTimeAsDay(time.LocalTime()))
-	
+	log.Println("Trips")
+
+	if currentFeed == "" {
+		fmt.Fprint(w, "{}")
+		return
+	}
+
+	ts := feeds[currentFeed].TripsForDay(time.LocalTime())
+	trips, err := json.Marshal(ts)
+
 	if err != nil {
 		panic(err)
 	}
 	fmt.Fprint(w, string(trips))
+	log.Println("Trips done")
 	return
 }
 
@@ -209,46 +229,46 @@ func LoadFeed(w http.ResponseWriter, r *http.Request) {
 		log.Println("Form Parse Error!?", err)
 		return
 	}
-	
+
 	if feeds[r.Form["feed"][0]] == nil {
 		fmt.Fprintf(w, "{\"error\":\"Error loading %v (not found)\"}", r.Form["feed"][0])
 		return
 	}
-	
+
 	feeds[r.Form["feed"][0]].Load()
 	fmt.Fprintf(w, "{\"success\":\"Loading %v...\"}", r.Form["feed"][0])
-	
+
 	return // http.Redirect(w, r, r.Referer, http.StatusTemporaryRedirect) // Come back
 }
 
 
 type WebSocketContext struct {
-	ws *websocket.Conn
-	inMessages chan string
+	ws          *websocket.Conn
+	inMessages  chan string
 	outMessages chan string
-	closeCh chan bool
+	closeCh     chan bool
 }
 
 // Echo the data received on the Web Socket.
 func GTFSSocket(ws *websocket.Conn) {
-	ctx := WebSocketContext{ws,make(chan string),make(chan string),make(chan bool)}
+	ctx := WebSocketContext{ws, make(chan string), make(chan string), make(chan bool)}
 	ctx.Handle()
 }
 
-func (ctx *WebSocketContext)Handle() {
-	
+func (ctx *WebSocketContext) Handle() {
+
 	go func() {
 		for {
 			select {
-			case in := <- ctx.inMessages:
+			case in := <-ctx.inMessages:
 				log.Println("In Message", in, len(in))
-			case out := <- ctx.outMessages:
+			case out := <-ctx.outMessages:
 				outb := []uint8(out)
-				log.Println("Out Message", outb, "ASSTRING:", out)
+				// log.Println("Out Message", outb, "ASSTRING:", out)
 				if _, err := ctx.ws.Write(outb); err != nil {
 					log.Println("W", err)
-		            ctx.closeCh <- true
-		        }
+					ctx.closeCh <- true
+				}
 			case <-ctx.closeCh:
 				log.Println("Closed connection")
 				ctx.ws.Close()
@@ -256,26 +276,25 @@ func (ctx *WebSocketContext)Handle() {
 			}
 		}
 	}()
-	
+
 	go func() {
-		time.Sleep(5*1E9)
+		time.Sleep(5 * 1E9)
 		ctx.outMessages <- "Hello"
-		time.Sleep(1*1E9)
-		ctx.outMessages <- "How are you"
-		time.Sleep(1*1E9)
-		ctx.outMessages <- "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
+		// time.Sleep(1*1E9)
+		// ctx.outMessages <- "How are you"
+		// time.Sleep(1*1E9)
+		// ctx.outMessages <- "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
 	}()
 
 	for {
 		buf := make([]byte, 256)
-	    n, err := ctx.ws.Read(buf)
-	    if err != nil {
+		n, err := ctx.ws.Read(buf)
+		if err != nil {
 			log.Println(err)
 			ctx.closeCh <- true
-            break
-	    } else {
+			break
+		} else {
 			ctx.inMessages <- string(buf[0:n])
 		}
 	}
 }
-

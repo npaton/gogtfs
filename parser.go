@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	// "log"
+	"log"
 )
 
 type Parser string
@@ -70,10 +70,12 @@ func (p *Parser) parse(r io.Reader, recordHandler func(k, v []string)) os.Error 
 		if perr != nil {
 			perr.FileName = string(*p)
 			perr.LineNumber = lineNumber
-			return perr
+			log.Println(perr)
+			// return perr
+		} else {
+			recordHandler(fieldKeys, fieldValues)
 		}
 
-		recordHandler(fieldKeys, fieldValues)
 
 		line, isPrefix, err = reader.ReadLine()
 	}
@@ -120,7 +122,9 @@ func (p *Parser) parseLine(line []byte) (tokens []string, err *ParseError) {
 			}
 
 			if field != "" && !startedWithQuote {
-				return nil, &ParseError{Message: fmt.Sprintf("Unexpected quote (\") found at char %d", charIndex)}
+				log.Println(fmt.Sprintf("Unexpected quote (\") found at char %d", charIndex))
+				field = field + string(rune)
+				// return nil, &ParseError{Message: fmt.Sprintf("Unexpected quote (\") found at char %d", charIndex)}
 			}
 
 			if quoteCount == 1 {
@@ -149,9 +153,7 @@ func (p *Parser) parseLine(line []byte) (tokens []string, err *ParseError) {
 			}
 			break
 		default:
-			if !(rune == ' ' && field == "") {
-				field = field + string(rune)
-			}
+			field = field + string(rune)
 			break
 		}
 		previousRune = rune

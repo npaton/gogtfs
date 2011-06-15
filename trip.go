@@ -65,7 +65,10 @@ type Trip struct {
 	// shape_id - Optional. The shape_id field contains an ID that defines a shape for the trip. This value is referenced
 	// from the shapes.txt file. The shapes.txt file allows you to define how a line should be drawn on the map to represent a trip.
 	ShapeId string
-	
+
+	//
+	DayTimeRange DayRange
+
 	StopTimes []*StopTime
 
 	feed *Feed
@@ -76,7 +79,7 @@ func (t *Trip) AddStopTime(newStopTime *StopTime) {
 	if t.StopTimes == nil {
 		t.StopTimes = make([]*StopTime, 0, 5)
 	}
-	
+
 	stopTimesLength := len(t.StopTimes)
 	if stopTimesLength == 0 {
 		// If first element simply append
@@ -86,7 +89,7 @@ func (t *Trip) AddStopTime(newStopTime *StopTime) {
 		if t.StopTimes[len(t.StopTimes)-1].StopSequence < newStopTime.StopSequence {
 			t.StopTimes = append(t.StopTimes, newStopTime)
 		} else {
-		// Otherwise rebuild new array, inserting the new stop time at right time
+			// Otherwise rebuild new array, inserting the new stop time at right time
 			newStopTimes := make([]*StopTime, stopTimesLength+1)
 			hasAppendedNewStopTime := false
 			for _, existingStopTime := range t.StopTimes {
@@ -103,6 +106,45 @@ func (t *Trip) AddStopTime(newStopTime *StopTime) {
 	}
 }
 
+type DayRange struct {
+	time     uint // time of day in seconds since midnight
+	duration uint // in seconds
+}
+
+func (dr *DayRange) Intersects(other *DayRange) bool {
+	if dr.time <= other.time+other.duration {
+		if dr.time+dr.duration >= other.time {
+			return true
+		} else {
+			return false
+		}
+	} else if other.time <= dr.time+dr.duration {
+		if other.time+other.duration <= dr.time {
+			return false
+		} else {
+			return true
+		}
+	}
+	return true
+
+}
+
+func (dr *DayRange) Contains(other *DayRange) bool {
+	if dr.time <= other.time && dr.time+dr.duration >= other.time+other.duration {
+		return true
+	}
+	return false
+}
+
+func (t *Trip) calculateDayTimeRange() {
+	stopTimesLength := len(t.StopTimes)
+	if stopTimesLength > 0 {
+		t.DayTimeRange = DayRange{t.StopTimes[0].DepartureTime, t.StopTimes[stopTimesLength-1].ArrivalTime - t.StopTimes[0].DepartureTime}
+	} else {
+		t.DayTimeRange = DayRange{0, 0}
+	}
+
+}
 
 func (t *Trip) HasShape() bool {
 	if t.ShapeId != "" && t.feed.Shapes[t.ShapeId] != nil {
@@ -165,6 +207,9 @@ func (t *Trip) setField(fieldName, val string) {
 }
 
 func (t *Trip) copyColorToShape() {
+	if t.Route == nil {
+		return
+	}
 	color := t.Route.Color
 	if color != "" && t.feed.Shapes[t.ShapeId] != nil {
 		// log.Println("INSPECT", color, "===", t.feed.Shapes[t.ShapeId])
