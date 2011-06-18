@@ -181,10 +181,7 @@ func (trip *Trip) calculateConnectedRoutes() {
 
 
 func (t *Trip) HasShape() bool {
-	if t.ShapeId != "" && t.feed.Shapes[t.ShapeId] != nil {
-		return true
-	}
-	return false
+	return t.ShapeId != "" && t.feed.Shapes[t.ShapeId] != nil
 }
 
 func (t *Trip) RunsOn(date *time.Time) (runs bool) {
