@@ -4,7 +4,7 @@ import (
 	"time"
 	"strconv"
 	"fmt"
-	"log"
+	// "log"
 	"os"
 )
 
@@ -60,23 +60,20 @@ type Calendar struct {
 
 	// start_date - Required. The start_date field contains the start date for the service.
 	// The start_date field's value should be in YYYYMMDD format.
-	StartDate string
+	StartDate int
 
 	// end_date - Required. The end_date field contains the end date for the service. This date is included in the service interval.
 	// The end_date field's value should be in YYYYMMDD format.
-	EndDate string
+	EndDate int
 
 	feed *Feed
 }
 
-func (c *Calendar) ValidOn(date string) bool {
-	if stringDayDateComp(c.StartDate, date) <= 0 && stringDayDateComp(c.EndDate, date) >= 0 {
+// func (c *Calendar) ValidOn(date string) bool {
+// 	if stringDayDateComp(c.StartDate, date) <= 0 && stringDayDateComp(c.EndDate, date) >= 0 {
+func (c *Calendar) ValidOn(intday int, t *time.Time) bool {
+	if c.StartDate <= intday && c.EndDate >= intday {
 
-		t, err := StringDateToTime(date)
-		if err != nil {
-			log.Println("time.Parse Erro ", err)
-			return false
-		}
 
 		switch t.Weekday {
 		case time.Monday:
@@ -159,11 +156,19 @@ func (c *Calendar) setField(fieldName, val string) {
 		}
 		break
 	case "start_date":
-		c.StartDate = val
+		v, _ := strconv.Atoi(val) // Should panic on error !
+		c.StartDate = v
 		break
 	case "end_date":
-		c.EndDate = val
+		v, _ := strconv.Atoi(val) // Should panic on error !
+		c.EndDate = v
 		break
+	// case "start_date":
+	// 	c.StartDate = val
+	// 	break
+	// case "end_date":
+	// 	c.EndDate = val
+	// 	break
 	}
 }
 

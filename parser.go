@@ -73,6 +73,13 @@ func (p *Parser) parse(r io.Reader, recordHandler func(k, v []string)) os.Error 
 			log.Println(perr)
 			// return perr
 		} else {
+			lengthdiff := len(fieldKeys) - len(fieldValues)
+			if lengthdiff != 0 && lengthdiff > 0 {
+				for lengthdiff > 0 {
+					fieldValues = append(fieldValues, "")
+					lengthdiff = lengthdiff - 1
+				}
+			}
 			recordHandler(fieldKeys, fieldValues)
 		}
 

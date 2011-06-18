@@ -69,10 +69,18 @@ type Stop struct {
 	// 	 A stop located outside a station.	0 or blank                   	A blank value. The parent_station field doesn't apply to this stop.
 	// 	 A station.                       	1                            	A blank value. Stations can't contain other stations.
 	ParentStationId string
+	
+	
+	Transfers map[string]*Transfer
+	
+	Trips []*Trip
 
 	feed *Feed
 }
 
+func NewStop() *Stop {
+	return &Stop{Transfers:make(map[string]*Transfer)}
+}
 
 func (s *Stop) ParentStation() *Stop {
 	return s.feed.Stops[s.ParentStationId]

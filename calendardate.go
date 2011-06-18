@@ -1,12 +1,15 @@
 package gtfs
 
 import (
-// "time"
+	// "time"
+	// "log"
+	"strconv"
 )
 
 // CalendarDate.ExceptionType possible values:
 const (
-	CalendarExceptionAddedService   = iota // A value of 1 indicates that service has been added for the specified date.
+	_	   = iota // Ignore 0
+	CalendarExceptionAddedService // A value of 1 indicates that service has been added for the specified date.
 	CalendarExceptionRemovedService        // A value of 2 indicates that service has been removed for the specified date.
 )
 
@@ -28,7 +31,7 @@ type CalendarDate struct {
 	// date - Required. The date field specifies a particular date when service availability is different than the norm. 
 	// You can use the exception_type field to indicate whether service is available on the specified date.
 	// The date field's value should be in YYYYMMDD format.
-	Date string
+	Date int
 
 	// exception_type - Required. The exception_type indicates whether service is available on the date specified in the date field.
 	// 	 A value of 1 indicates that service has been added for the specified date.
@@ -43,9 +46,12 @@ type CalendarDate struct {
 	feed *Feed
 }
 
-func (cd *CalendarDate) ExceptionOn(date string) (exceptionalDate, shouldRun bool) {
+// func (cd *CalendarDate) ExceptionOn(date string) (exceptionalDate, shouldRun bool) {
+// 	exceptionalDate, shouldRun = false, false
+// 	if stringDayDateComp(cd.Date, date) == 0 {
+func (cd *CalendarDate) ExceptionOn(intday int) (exceptionalDate, shouldRun bool) {
 	exceptionalDate, shouldRun = false, false
-	if stringDayDateComp(cd.Date, date) == 0 {
+	if cd.Date == intday {
 		exceptionalDate = true
 		if cd.ExceptionType == CalendarExceptionAddedService {
 			shouldRun = true
@@ -62,8 +68,12 @@ func (cd *CalendarDate) setField(fieldName, val string) {
 		cd.serviceId = val
 		break
 	case "date":
-		cd.Date = val
+		v, _ := strconv.Atoi(val) // Should panic on error !
+		cd.Date = v
 		break
+	// case "date":
+	// 	cd.Date = val
+	// 	break
 	case "exception_type":
 		if val == "1" {
 			cd.ExceptionType = 1

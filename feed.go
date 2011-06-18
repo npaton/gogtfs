@@ -5,6 +5,7 @@ import (
 	"os"
 	"io"
 	"log"
+	"runtime"
 	"archive/zip"
 	// "bufio"
 	"time"
@@ -23,12 +24,15 @@ type Feed struct {
 	Services       map[string]*Service
 	Shapes         map[string]*Shape
 	Calendars      map[string]*Calendar
-	CalendarDates  map[string]*CalendarDate
+	CalendarDates  map[string][]*CalendarDate
 	Loaded         bool
 	StopTimesCount int
+	TranfersCount int
+	FrequenciesCount int
 }
 
-var RequiredFiles = []string{"agency.txt", "stops.txt", "routes.txt", "trips.txt", "stop_times.txt", "calendar.txt"}
+var RequiredFiles = []string{"agency.txt", "stops.txt", "routes.txt", "trips.txt", "stop_times.txt"}
+var RequiredEitherCalendarFiles = []string{"calendar.txt", "calendar_dates.txt"}
 var AllFiles = []string{"agency.txt", "stops.txt", "routes.txt", "trips.txt", "stop_times.txt", "calendar.txt", "calendar_dates.txt", "fare_attributes.txt", "fare_rules.txt", "shapes.txt", "frequencies.txt", "transfers.txt"}
 
 func NewFeed(path string) (*Feed, os.Error) {
@@ -42,7 +46,7 @@ func NewFeed(path string) (*Feed, os.Error) {
 		Services:      make(map[string]*Service),
 		Shapes:        make(map[string]*Shape),
 		Calendars:     make(map[string]*Calendar),
-		CalendarDates: make(map[string]*CalendarDate),
+		CalendarDates: make(map[string][]*CalendarDate),
 		Loaded:        false,
 	}
 
@@ -56,7 +60,7 @@ func (f *Feed) Reload() os.Error {
 	f.Services = make(map[string]*Service)
 	f.Shapes = make(map[string]*Shape)
 	f.Calendars = make(map[string]*Calendar)
-	f.CalendarDates = make(map[string]*CalendarDate)
+	f.CalendarDates = make(map[string][]*CalendarDate)
 	f.Loaded = false
 	return f.Load()
 }
@@ -114,10 +118,18 @@ func (f *Feed) Load() os.Error {
 
 	// Color field copy from Routes to Shapes for json export
 	// And calculate the DayRange for each trip
-	for _, trip := range f.Trips {
-		trip.copyColorToShape()
-		trip.calculateDayTimeRange()
-	}
+	bench("Trips calculations", func() interface{} {
+		for _, trip := range f.Trips {
+			trip.copyColorToShape()
+			trip.calculateDayTimeRange()
+			trip.calculateConnectedRoutes()
+			for _, freq := range trip.Frequencies {
+				freq.calculateDayTimeRange()
+			}
+		}
+		return "yes"
+	})
+	
 
 	if len(f.Agencies) == 0 {
 		return os.NewError("A feed needs a least one agency !")
@@ -131,24 +143,105 @@ func (f *Feed) Load() os.Error {
 	log.Println("Shapes count", len(f.Shapes))
 	log.Println("Calendars count", len(f.Calendars))
 	log.Println("CalendarDates count", len(f.CalendarDates))
+	log.Println("Tranfers count", f.TranfersCount)
+	log.Println("FrequenciesCount count", f.TranfersCount)
+	
+	log.Printf("gtfsd weight - bytes = %d - footprint = %d", runtime.MemStats.HeapAlloc, runtime.MemStats.Sys)
+	
+	tripsForDay := f.TripsForDay(time.LocalTime())
+	bench("Trip today count", func() interface{} {
+		return len(tripsForDay)
+	})
+	bench("Trip between 6 and 7 today count", func() interface{} {
+		return len(f.TripsForDayAndDayRange(time.LocalTime(), &DayRange{60*60*6, 60*60}))
+	})
+	bench("Trip between 6 and 8 today count", func() interface{} {
+		return len(f.TripsForDayAndDayRange(time.LocalTime(), &DayRange{60*60*6, 60*60*2}))
+	})
+	bench("Trip between 7 and 8 today count", func() interface{} {
+		return len(f.TripsForDayAndDayRange(time.LocalTime(), &DayRange{60*60*7, 60*60}))
+	})
+	bench("Trip between 15 and 20 today count", func() interface{} {
+		return len(f.TripsForDayAndDayRange(time.LocalTime(), &DayRange{60*60*15, 60*60*5}))
+	})
+	bench("Trip between 17 and 19 today count", func() interface{} {
+		return len(f.TripsForDayAndDayRange(time.LocalTime(), &DayRange{60*60*17, 60*60*2}))
+	})
+	
+	var stopX *Stop
+	stopsCount := 0
+	for _, stopX = range f.Stops { if stopsCount > 10 { break }; stopsCount+=1 }
+	bench("Trip between 19:00 and 19:10 today on stop x count", func() interface{} {
+		return len(f.TripsForDayAndDayRangeAndStop(time.LocalTime(), &DayRange{60*60*0, 60*10}, stopX))
+	})
+	
+	bench("Trip all day today on stop x count", func() interface{} {
+		return len(f.TripsForDayAndDayRangeAndStop(time.LocalTime(), &DayRange{60*60*0, 60*60*24}, stopX))
+	})
+	
+	log.Printf("Before GC - bytes = %d - footprint = %d", runtime.MemStats.HeapAlloc, runtime.MemStats.Sys)
+	runtime.GC()
+	log.Printf("After GC - bytes = %d - footprint = %d", runtime.MemStats.HeapAlloc, runtime.MemStats.Sys)
+	
+	
+	
+	log.Printf("gtfsd weight before routes - bytes = %d - footprint = %d", runtime.MemStats.HeapAlloc, runtime.MemStats.Sys)
+	bench("Route connections made", func() interface{} {
+		routeconnections := NewRouteConnections()
+		return routeconnections.collectRouteConnections(tripsForDay)
+	})
+	log.Printf("gtfsd weight after routes - bytes = %d - footprint = %d", runtime.MemStats.HeapAlloc, runtime.MemStats.Sys)
+	runtime.GC()
+	log.Printf("After GC - bytes = %d - footprint = %d", runtime.MemStats.HeapAlloc, runtime.MemStats.Sys)
+	
+	
+	
 	return nil
 }
 
-
-func (feed *Feed) TripsForDay(time *time.Time) []*Trip {
-	return feed.TripsForStringDate(TimeToStringDate(time))
+func bench(name string, toBench func() interface{}) {
+	start := time.Nanoseconds()
+	result := toBench()
+	log.Println("Bench '" + name + "' took:", float64(time.Nanoseconds() - start) / 1E6, "ms", "- result:", result)
 }
 
-func (feed *Feed) TripsForStringDate(date string) []*Trip {
+
+func (feed *Feed) TripsForDay(date *time.Time) []*Trip {
 	tripsos := make([]*Trip, 0, len(feed.Trips))
 	for _, trip := range feed.Trips {
-		if trip.RunsOn(date) && trip.HasShape() {
-			log.Println("Trip on", date+":", trip)
+		if trip.RunsOn(date) {
+			// log.Println("Trip on", date+":", trip)
 			tripsos = append(tripsos, trip)
 		}
 	}
 
-	log.Println("Trips on", date+":", len(tripsos))
+	// log.Println("Trips on", date+":", len(tripsos))
+	return tripsos
+}
+
+func (feed *Feed) TripsForDayAndDayRange(date *time.Time, dayrange *DayRange) []*Trip {
+	tripsos := make([]*Trip, 0, len(feed.Trips))
+	for _, trip := range feed.Trips {
+		if trip.RunsOn(date) && trip.Intersects(dayrange) {
+			// log.Println("Trip on", date+":", trip)
+			tripsos = append(tripsos, trip)
+		}
+	}
+
+	// log.Println("Trips on", date+":", len(tripsos))
+	return tripsos
+}
+
+func (feed *Feed) TripsForDayAndDayRangeAndStop(date *time.Time, dayrange *DayRange, stop *Stop) []*Trip {
+	tripsos := make([]*Trip, 0, len(feed.Trips))
+	for _, trip := range feed.Trips {
+		if trip.RunsOn(date) && trip.Intersects(dayrange) && trip.RunsAccross(stop) {
+			// log.Println("Trip on", date+":", trip)
+			tripsos = append(tripsos, trip)
+		}
+	}
+
+	// log.Println("Trips on", date+":", len(tripsos))
 	return tripsos
 }
 
@@ -201,7 +294,7 @@ func (feed *Feed) parseTxtFile(reader io.Reader, fileName string) (err os.Error)
 	case "stops.txt":
 		log.Println("stops.txt")
 		err = parser.parse(reader, func(k, v []string) {
-			stop := new(Stop)
+			stop := NewStop()
 			stop.feed = feed
 			fieldsSetter(stop, k, v)
 			// log.Println("  - stop:", stop)
@@ -230,6 +323,7 @@ func (feed *Feed) parseTxtFile(reader io.Reader, fileName string) (err os.Error)
 			trip := new(Trip)
 			trip.feed = feed
 			fieldsSetter(trip, k, v)
+			trip.afterInit()
 			// log.Println("  - trip:", trip)
 			feed.Trips[trip.Id] = trip
 		})
@@ -238,6 +332,7 @@ func (feed *Feed) parseTxtFile(reader io.Reader, fileName string) (err os.Error)
 		}
 		break
 	case "stop_times.txt":
+		// break
 		log.Println("stop_times.txt")
 		err = parser.parse(reader, func(k, v []string) {
 			stopTime := new(StopTime)
@@ -246,7 +341,12 @@ func (feed *Feed) parseTxtFile(reader io.Reader, fileName string) (err os.Error)
 			// log.Println("  - stopTime:", stopTime)
 			if stopTime.Trip != nil {
 				feed.StopTimesCount = feed.StopTimesCount + 1
+				
 				// log.Println("  - stopTime:", stopTime)
+				if stopTime.Stop != nil {
+					stopTime.Stop.Trips = append(stopTime.Stop.Trips, stopTime.Trip)
+				}
+				 
 				stopTime.Trip.AddStopTime(stopTime)
 			}
 			// feed.StopTimes = append(feed.StopTimes, stopTime)
@@ -276,7 +376,10 @@ func (feed *Feed) parseTxtFile(reader io.Reader, fileName string) (err os.Error)
 			calendardate.feed = feed
 			fieldsSetter(calendardate, k, v)
 			// log.Println("  - calendardate:", calendardate)
-			feed.CalendarDates[calendardate.serviceId] = calendardate
+			if feed.CalendarDates[calendardate.serviceId] == nil {
+				feed.CalendarDates[calendardate.serviceId] = make([]*CalendarDate,0)
+			}
+			feed.CalendarDates[calendardate.serviceId] = append(feed.CalendarDates[calendardate.serviceId], calendardate)
 		})
 		if err != nil {
 			return
@@ -285,6 +388,7 @@ func (feed *Feed) parseTxtFile(reader io.Reader, fileName string) (err os.Error)
 	// case "fare_attributes.txt":
 	// case "fare_rules.txt":
 	case "shapes.txt":
+		// break
 		log.Println("shapes.txt")
 		err = parser.parse(reader, func(k, v []string) {
 			shapepoint := new(ShapePoint)
@@ -303,8 +407,36 @@ func (feed *Feed) parseTxtFile(reader io.Reader, fileName string) (err os.Error)
 			return
 		}
 		break
-		// case "frequencies.txt":
-		// case "transfers.txt":
+		case "frequencies.txt":
+			log.Println("frequencies.txt")
+			err = parser.parse(reader, func(k, v []string) {
+				frequency := new(Frequency)
+				frequency.feed = feed
+				fieldsSetter(frequency, k, v)
+				// log.Println("  - frequency:", frequency)
+				if frequency.Trip != nil {
+					feed.Trips[frequency.Trip.Id].Frequencies = append(feed.Trips[frequency.Trip.Id].Frequencies, *frequency)
+					feed.FrequenciesCount = feed.FrequenciesCount + 1
+				}
+			})
+			if err != nil {
+				return
+			}
+			break
+		case "transfers.txt":
+			log.Println("transfers.txt")
+			err = parser.parse(reader, func(k, v []string) {
+				transfer := new(Transfer)
+				transfer.feed = feed
+				fieldsSetter(transfer, k, v)
+				// log.Println("  - transfer:", transfer)
+				feed.Stops[transfer.FromStopId].Transfers[transfer.ToStopId] = transfer
+				feed.TranfersCount = feed.TranfersCount + 1
+			})
+			if err != nil {
+				return
+			}
+			break
 	}
 
 	return

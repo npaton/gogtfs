@@ -2,6 +2,8 @@ package gtfs
 
 import (
 	"strconv"
+	"time"
+	"fmt"
 	// "log"
 )
 
@@ -67,11 +69,24 @@ type Trip struct {
 	ShapeId string
 
 	//
-	DayTimeRange DayRange
+	DayRange
 
 	StopTimes []*StopTime
+	
+	Frequencies []Frequency
+	
+	ConnectedRoutes []*RouteConnection
 
 	feed *Feed
+}
+
+func (t *Trip) RunsAccross(stop *Stop) bool {
+	for _, st := range t.StopTimes {
+		if st.Stop.Id == stop.Id {
+			return true
+		}
+	}
+	return false
 }
 
 // AddStopTime adds StopTime to trip.StopTimes with respect to the stop_sequence order
@@ -107,44 +122,63 @@ func (t *Trip) AddStopTime(newStopTime *StopTime) {
 }
 
 type DayRange struct {
-	time     uint // time of day in seconds since midnight
-	duration uint // in seconds
+	from uint // time of day in seconds since midnight
+	to uint // in seconds
 }
 
-func (dr *DayRange) Intersects(other *DayRange) bool {
-	if dr.time <= other.time+other.duration {
-		if dr.time+dr.duration >= other.time {
-			return true
-		} else {
-			return false
-		}
-	} else if other.time <= dr.time+dr.duration {
-		if other.time+other.duration <= dr.time {
-			return false
-		} else {
-			return true
-		}
-	}
-	return true
-
+func (a *DayRange) Intersects(b *DayRange) bool {
+	return (a.from <= b.from && a.to >= b.from) || (b.from <= a.from && b.to >= a.from)
 }
 
-func (dr *DayRange) Contains(other *DayRange) bool {
-	if dr.time <= other.time && dr.time+dr.duration >= other.time+other.duration {
-		return true
+func (a *DayRange) Contains(b *DayRange) bool {
+	return a.from <= b.from && a.to >= b.to
+}
+
+func (a *DayRange) Add(b *DayRange) {
+	if b.from < a.from {
+		a.from = b.from
 	}
-	return false
+	if b.to > a.to {
+		a.to = b.to
+	}
 }
 
 func (t *Trip) calculateDayTimeRange() {
 	stopTimesLength := len(t.StopTimes)
 	if stopTimesLength > 0 {
-		t.DayTimeRange = DayRange{t.StopTimes[0].DepartureTime, t.StopTimes[stopTimesLength-1].ArrivalTime - t.StopTimes[0].DepartureTime}
+		dayrange := &DayRange{t.StopTimes[0].DepartureTime, t.StopTimes[stopTimesLength-1].ArrivalTime}
+		for _, freq := range t.Frequencies {
+			dayrange.Add(&freq.DayRange)
+		}
+		t.DayRange = *dayrange
 	} else {
-		t.DayTimeRange = DayRange{0, 0}
+		t.DayRange = DayRange{0, 0}
 	}
 
 }
+
+func (trip *Trip) calculateConnectedRoutes() {
+	route := trip.Route
+	for _, st := range trip.StopTimes {
+		for _, stoptrip := range st.Stop.Trips {
+			if stoptrip.Route.Id != route.Id {
+				newcon := &RouteConnection{stoptrip.Route,st.Stop}
+				shouldAdd := true
+				for _, otherconn := range trip.ConnectedRoutes {
+					if newcon.Equal(otherconn) {
+						shouldAdd = false
+						break
+					}
+				}
+				if shouldAdd {
+					trip.ConnectedRoutes = append(trip.ConnectedRoutes, newcon)
+				}
+				
+			}
+		}
+	}
+}
+
 
 func (t *Trip) HasShape() bool {
 	if t.ShapeId != "" && t.feed.Shapes[t.ShapeId] != nil {
@@ -153,21 +187,30 @@ func (t *Trip) HasShape() bool {
 	return false
 }
 
-func (t *Trip) RunsOn(day string) (runs bool) {
+func (t *Trip) RunsOn(date *time.Time) (runs bool) {
 	runs = false // Unnecessary, default init to false, no?
+	intdate, _ := strconv.Atoi(fmt.Sprintf("%04d", date.Year) + fmt.Sprintf("%02d",date.Month) + fmt.Sprintf("%02d",date.Day)) 
 	if calendar, ok := t.feed.Calendars[t.serviceId]; ok {
-		if calendar.ValidOn(day) {
+		if calendar.ValidOn(intdate, date) {
 			runs = true
 		}
 	}
 
-	if calendardate, ok := t.feed.CalendarDates[t.serviceId]; ok {
-		if exceptionOnDay, shouldRun := calendardate.ExceptionOn(day); exceptionOnDay {
-			runs = shouldRun
+	if calendardates, ok := t.feed.CalendarDates[t.serviceId]; ok {
+		// log.Println("calendardates", calendardates)
+		for _, cd := range calendardates {
+			if exceptionOnDay, shouldRun := cd.ExceptionOn(intdate); exceptionOnDay {
+				// log.Println("calendardate shouldRun", shouldRun)
+				runs = shouldRun
+			}
 		}
 	}
 
 	return
+}
+
+func (t *Trip) afterInit() {
+	t.Frequencies = make([]Frequency, 0)
 }
 
 

@@ -20,6 +20,8 @@ GOFILES=\
 	frequency.go\
 	transfer.go\
 	zone.go\
+	itinerary.go\
+	grapher.go\
 
 include $(GOROOT)/src/Make.pkg
 

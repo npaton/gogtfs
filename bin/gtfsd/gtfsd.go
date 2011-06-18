@@ -59,6 +59,8 @@ func discoverGtfsPaths(path string) (results []string) {
 		}
 
 		requiredFiles := gtfs.RequiredFiles
+		requiredCalendarFiles := gtfs.RequiredEitherCalendarFiles
+		foundCalendar := false
 		foundFiles := make([]string, 0, len(requiredFiles))
 		for _, fi := range fileInfos {
 			if fi.IsDirectory() {
@@ -74,11 +76,22 @@ func discoverGtfsPaths(path string) (results []string) {
 						foundFiles = append(foundFiles, f)
 					}
 				}
+				if !foundCalendar {
+					for _, f := range requiredCalendarFiles {
+						if fi.Name == f {
+							foundCalendar = true
+						}
+					}
+				}
+				
 			}
 		}
-		if len(foundFiles) == len(requiredFiles) {
+		
+		if len(foundFiles) == len(requiredFiles) && foundCalendar {
 			results = append(results, path)
 		}
+		
+		
 	} else {
 		if filepath.Ext(path) == ".zip" {
 			results = append(results, path)
