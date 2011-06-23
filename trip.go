@@ -75,12 +75,65 @@ type Trip struct {
 	
 	Frequencies []Frequency
 	
-	ConnectedRoutes []*RouteConnection
 
 	feed *Feed
 }
 
+func (t *Trip) NextStopTimeWithTransfer(fromstop, after *Stop)  (stopTime *StopTime, cost int, doesRun bool) {
+	// Looking for stop after fromstop in trip sequence that has attached stoptimes
+	if fromstop == nil { return nil, 0, false }
+	foundFrom  := false
+	foundAfter := false
+	var previousStopTime *StopTime
+	for _, st := range t.StopTimes {
+		if foundFrom {
+			// We from departure to departure (and not arrival) to automatically include transfer/wait time. Kinda.
+			cost += int(st.DepartureTime - previousStopTime.DepartureTime)
+			previousStopTime = st
+		}
+		if st.Stop != nil {
+			if !foundFrom && st.Stop == fromstop {
+				foundFrom = true
+				previousStopTime = st
+			}
+			if len(st.Stop.StopTimes) > 1 && foundFrom && (after == nil || foundAfter) {
+				return st, cost, true
+			}
+			if after != nil && !foundAfter && st.Stop == after {
+				foundAfter = true
+			}
+		}
+	}
+	return nil, 0, false
+}
+
+func (t *Trip) RunsFromTo(fromstop, tostop *Stop) (stopTime *StopTime, cost int, doesRun bool) {
+	if fromstop == nil { return nil, 0, false }
+	if tostop == nil { return nil, 0, false }
+	
+	foundFrom := false
+	var previousStopTime *StopTime
+	for _, st := range t.StopTimes {
+		if foundFrom {
+			// We from departure to departure (and not arrival) to automatically include transfer/wait time. Kinda.
+			cost += int(st.DepartureTime - previousStopTime.DepartureTime)
+			previousStopTime = st
+		}
+		if !foundFrom && st.Stop != nil && st.Stop == fromstop {
+			foundFrom = true
+			previousStopTime = st
+		}
+		if st.Stop != nil && st.Stop.Id == tostop.Id {
+			if !foundFrom {
+				return nil, 0, false
+			}
+			return st, cost, true
+		}
+	}
+	return nil, 0, false
+}
 func (t *Trip) RunsAccross(stop *Stop) bool {
+	
 	for _, st := range t.StopTimes {
 		if st.Stop.Id == stop.Id {
 			return true
@@ -156,29 +209,6 @@ func (t *Trip) calculateDayTimeRange() {
 	}
 
 }
-
-func (trip *Trip) calculateConnectedRoutes() {
-	route := trip.Route
-	for _, st := range trip.StopTimes {
-		for _, stoptrip := range st.Stop.Trips {
-			if stoptrip.Route.Id != route.Id {
-				newcon := &RouteConnection{stoptrip.Route,st.Stop}
-				shouldAdd := true
-				for _, otherconn := range trip.ConnectedRoutes {
-					if newcon.Equal(otherconn) {
-						shouldAdd = false
-						break
-					}
-				}
-				if shouldAdd {
-					trip.ConnectedRoutes = append(trip.ConnectedRoutes, newcon)
-				}
-				
-			}
-		}
-	}
-}
-
 
 func (t *Trip) HasShape() bool {
 	return t.ShapeId != "" && t.feed.Shapes[t.ShapeId] != nil

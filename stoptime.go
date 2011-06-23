@@ -1,7 +1,7 @@
 package gtfs
 
 import (
-	// "time"
+	"time"
 	"strconv"
 	"strings"
 	"os"
@@ -144,7 +144,7 @@ func (st *StopTime) setField(fieldName, val string) {
 		st.DepartureTime = v
 		break
 	case "stop_id":
-		st.Stop = st.feed.Stops[val]
+		st.Stop = st.feed.StopCollection.Stops[val]
 		break
 	case "stop_sequence":
 		v, _ := strconv.Atoui(val)
@@ -207,4 +207,8 @@ func timeOfDayStringToSeconds(t string) (uint, os.Error) {
 		return 0, err
 	}
 	return (hours * 60 * 60) + (minutes * 60) + seconds, nil
+}
+
+func timeOfDayInSeconds(t *time.Time) uint {
+	return uint(t.Hour*60*60 + t.Minute*60 + t.Second)
 }

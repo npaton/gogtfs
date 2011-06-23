@@ -2,6 +2,7 @@ package gtfs
 
 import (
 	"strconv"
+	"time"
 )
 
 // Stop.LocationType possible values:
@@ -9,6 +10,8 @@ const (
 	LocationTypeStop    = iota // 0 - Stop. A location where passengers board or disembark from a transit vehicle.
 	LocationTypeStation        // 1 - Station. A physical structure or area that contains one or more stop.
 )
+
+
 // stops.txt
 type Stop struct {
 
@@ -73,7 +76,7 @@ type Stop struct {
 	
 	Transfers map[string]*Transfer
 	
-	Trips []*Trip
+	StopTimes []*StopTime
 
 	feed *Feed
 }
@@ -83,7 +86,17 @@ func NewStop() *Stop {
 }
 
 func (s *Stop) ParentStation() *Stop {
-	return s.feed.Stops[s.ParentStationId]
+	return s.feed.StopCollection.Stops[s.ParentStationId]
+}
+
+func (s *Stop) NextStopTimes(time *time.Time, count int) (stopTimes []*StopTime) {
+	timeOfDay := timeOfDayInSeconds(time)
+	for _, stoptime := range s.StopTimes {
+		if stoptime.Trip.RunsOn(time) && stoptime.DepartureTime > timeOfDay {
+			stopTimes = append(stopTimes, stoptime)
+		}
+	}
+	return
 }
 
 

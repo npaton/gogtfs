@@ -22,6 +22,7 @@ GOFILES=\
 	zone.go\
 	itinerary.go\
 	grapher.go\
+	stop_collection.go\
 
 include $(GOROOT)/src/Make.pkg
 

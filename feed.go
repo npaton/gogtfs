@@ -18,7 +18,8 @@ type Feed struct {
 	loadedDate     time.Time
 	path           string // Feed's path on disk (zip or folder containing GTFS .txt files)
 	Agencies       map[string]*Agency
-	Stops          map[string]*Stop
+	// Stops          map[string]*Stop
+	StopCollection
 	Routes         map[string]*Route
 	Trips          map[string]*Trip
 	Services       map[string]*Service
@@ -40,7 +41,7 @@ func NewFeed(path string) (*Feed, os.Error) {
 	feed := &Feed{
 		path:          path,
 		Agencies:      make(map[string]*Agency),
-		Stops:         make(map[string]*Stop),
+		StopCollection:         NewStopCollection(),
 		Routes:        make(map[string]*Route),
 		Trips:         make(map[string]*Trip),
 		Services:      make(map[string]*Service),
@@ -54,7 +55,7 @@ func NewFeed(path string) (*Feed, os.Error) {
 }
 func (f *Feed) Reload() os.Error {
 	f.Agencies = make(map[string]*Agency)
-	f.Stops = make(map[string]*Stop)
+	f.StopCollection = NewStopCollection()
 	f.Routes = make(map[string]*Route)
 	f.Trips = make(map[string]*Trip)
 	f.Services = make(map[string]*Service)
@@ -122,7 +123,6 @@ func (f *Feed) Load() os.Error {
 		for _, trip := range f.Trips {
 			trip.copyColorToShape()
 			trip.calculateDayTimeRange()
-			trip.calculateConnectedRoutes()
 			for _, freq := range trip.Frequencies {
 				freq.calculateDayTimeRange()
 			}
@@ -136,7 +136,7 @@ func (f *Feed) Load() os.Error {
 	}
 
 	log.Println("Agency count", len(f.Agencies))
-	log.Println("Stops count", len(f.Stops))
+	log.Println("Stops count", f.StopCollection.Length())
 	log.Println("Routes count", len(f.Routes))
 	log.Println("Trip count", len(f.Trips))
 	log.Println("StopTimes count", f.StopTimesCount)
@@ -168,12 +168,17 @@ func (f *Feed) Load() os.Error {
 		return len(f.TripsForDayAndDayRange(time.LocalTime(), &DayRange{60*60*17, 60*60*2}))
 	})
 	
-	var stopX *Stop
-	stopsCount := 0
-	for _, stopX = range f.Stops { if stopsCount > 10 { break }; stopsCount+=1 }
+	stopX := f.StopCollection.RandomStop()
 	bench("Trip between 19:00 and 19:10 today on stop x count", func() interface{} {
 		return len(f.TripsForDayAndDayRangeAndStop(time.LocalTime(), &DayRange{60*60*0, 60*10}, stopX))
 	})
+	
+	
+	// for {
+	// 	trips := f.TripsForDayAndDayRangeAndStop(time.LocalTime(), &DayRange{60*60*0, 60*10}, stopX)
+	// 	log.Println("found trips", trips)
+	// }
+	
 	
 	bench("Trip all day today on stop x count", func() interface{} {
 		return len(f.TripsForDayAndDayRangeAndStop(time.LocalTime(), &DayRange{60*60*0, 60*60*24}, stopX))
@@ -185,12 +190,28 @@ func (f *Feed) Load() os.Error {
 	
 	
 	
-	log.Printf("gtfsd weight before routes - bytes = %d - footprint = %d", runtime.MemStats.HeapAlloc, runtime.MemStats.Sys)
-	bench("Route connections made", func() interface{} {
-		routeconnections := NewRouteConnections()
-		return routeconnections.collectRouteConnections(tripsForDay)
+	stopY := f.StopCollection.RandomStop()
+	log.Printf("gtfsd weight before itinerary - bytes = %d - footprint = %d", runtime.MemStats.HeapAlloc, runtime.MemStats.Sys)
+	// for {
+	// 	i := NewItinerary(f)
+	// 	t := time.LocalTime()
+	// 	t.Hour = 7
+	// 	i.Departure = t
+	// 	i.From = stopX
+	// 	i.To = stopY
+	// 	i.Run()
+	// }
+	bench("Itinerary", func() interface{} {
+		i := NewItinerary(f)
+		t := time.LocalTime()
+		t.Hour = 7
+		i.Departure = t
+		i.From = stopX
+		i.To = stopY
+		i.Run()
+		return ""
 	})
-	log.Printf("gtfsd weight after routes - bytes = %d - footprint = %d", runtime.MemStats.HeapAlloc, runtime.MemStats.Sys)
+	log.Printf("gtfsd weight after itinerary - bytes = %d - footprint = %d", runtime.MemStats.HeapAlloc, runtime.MemStats.Sys)
 	runtime.GC()
 	log.Printf("After GC - bytes = %d - footprint = %d", runtime.MemStats.HeapAlloc, runtime.MemStats.Sys)
 	
@@ -204,6 +225,7 @@ func bench(name string, toBench func() interface{}) {
 	result := toBench()
 	log.Println("Bench '" + name + "' took:", float64(time.Nanoseconds() - start) / 1E6, "ms", "- result:", result)
 }
+
 
 
 func (feed *Feed) TripsForDay(date *time.Time) []*Trip {
@@ -298,7 +320,7 @@ func (feed *Feed) parseTxtFile(reader io.Reader, fileName string) (err os.Error)
 			stop.feed = feed
 			fieldsSetter(stop, k, v)
 			// log.Println("  - stop:", stop)
-			feed.Stops[stop.Id] = stop
+			feed.StopCollection.SetStop(stop.Id, stop)
 		})
 		if err != nil {
 			return
@@ -341,14 +363,13 @@ func (feed *Feed) parseTxtFile(reader io.Reader, fileName string) (err os.Error)
 			// log.Println("  - stopTime:", stopTime)
 			if stopTime.Trip != nil {
 				feed.StopTimesCount = feed.StopTimesCount + 1
-				
-				// log.Println("  - stopTime:", stopTime)
-				if stopTime.Stop != nil {
-					stopTime.Stop.Trips = append(stopTime.Stop.Trips, stopTime.Trip)
-				}
-				 
 				stopTime.Trip.AddStopTime(stopTime)
 			}
+			
+			if stopTime.Stop != nil { // For security, should proceed otherwise
+				stopTime.Stop.StopTimes = append(stopTime.Stop.StopTimes, stopTime)
+			}
+			
 			// feed.StopTimes = append(feed.StopTimes, stopTime)
 		})
 		if err != nil {
@@ -430,7 +451,7 @@ func (feed *Feed) parseTxtFile(reader io.Reader, fileName string) (err os.Error)
 				transfer.feed = feed
 				fieldsSetter(transfer, k, v)
 				// log.Println("  - transfer:", transfer)
-				feed.Stops[transfer.FromStopId].Transfers[transfer.ToStopId] = transfer
+				feed.StopCollection.Stop(transfer.FromStopId).Transfers[transfer.ToStopId] = transfer
 				feed.TranfersCount = feed.TranfersCount + 1
 			})
 			if err != nil {
