@@ -8,8 +8,8 @@ import (
 
 // CalendarDate.ExceptionType possible values:
 const (
-	_	   = iota // Ignore 0
-	CalendarExceptionAddedService // A value of 1 indicates that service has been added for the specified date.
+	_                               = iota // Ignore 0
+	CalendarExceptionAddedService          // A value of 1 indicates that service has been added for the specified date.
 	CalendarExceptionRemovedService        // A value of 2 indicates that service has been removed for the specified date.
 )
 
@@ -59,7 +59,6 @@ func (cd *CalendarDate) ExceptionOn(intday int) (exceptionalDate, shouldRun bool
 	}
 	return exceptionalDate, shouldRun
 }
-
 
 func (cd *CalendarDate) setField(fieldName, val string) {
 	// log.Println("setField", fieldName, value)

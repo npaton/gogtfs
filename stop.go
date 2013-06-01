@@ -11,7 +11,6 @@ const (
 	LocationTypeStation        // 1 - Station. A physical structure or area that contains one or more stop.
 )
 
-
 // stops.txt
 type Stop struct {
 
@@ -72,17 +71,16 @@ type Stop struct {
 	// 	 A stop located outside a station.	0 or blank                   	A blank value. The parent_station field doesn't apply to this stop.
 	// 	 A station.                       	1                            	A blank value. Stations can't contain other stations.
 	ParentStationId string
-	
-	
+
 	Transfers map[string]*Transfer
-	
+
 	StopTimes []*StopTime
 
 	feed *Feed
 }
 
 func NewStop() *Stop {
-	return &Stop{Transfers:make(map[string]*Transfer)}
+	return &Stop{Transfers: make(map[string]*Transfer)}
 }
 
 func (s *Stop) ParentStation() *Stop {
@@ -98,7 +96,6 @@ func (s *Stop) NextStopTimes(time *time.Time, count int) (stopTimes []*StopTime)
 	}
 	return
 }
-
 
 func (s *Stop) setField(fieldName, val string) {
 	// log.Println("setField", fieldName, value)
@@ -116,11 +113,11 @@ func (s *Stop) setField(fieldName, val string) {
 		s.Desc = val
 		break
 	case "stop_lat":
-		v, _ := strconv.Atof64(val) // Should panic on error !
+		v, _ := strconv.ParseFloat(val, 64) // Should panic on error !
 		s.Lat = v
 		break
 	case "stop_lon":
-		v, _ := strconv.Atof64(val) // Should panic on error !
+		v, _ := strconv.ParseFloat(val, 64) // Should panic on error !
 		s.Lon = v
 		break
 	case "zone_id":
@@ -130,7 +127,7 @@ func (s *Stop) setField(fieldName, val string) {
 		s.Url = val
 		break
 	case "location_type":
-		v, _ := strconv.Atoui(val) // Should panic on error !
+		v, _ := strconv.Atoi(val) // Should panic on error !
 		if v == 0 {
 			s.LocationType = LocationTypeStop
 		} else if v == 1 {

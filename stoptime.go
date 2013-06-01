@@ -1,10 +1,9 @@
 package gtfs
 
 import (
-	"time"
 	"strconv"
 	"strings"
-	"os"
+	"time"
 )
 
 // StopTime.PickupType possible values:
@@ -122,7 +121,6 @@ type StopTime struct {
 	feed *Feed
 }
 
-
 func (st *StopTime) setField(fieldName, val string) {
 	// log.Println("setField", fieldName, value)
 	switch fieldName {
@@ -132,7 +130,7 @@ func (st *StopTime) setField(fieldName, val string) {
 	case "arrival_time":
 		v, err := timeOfDayStringToSeconds(val)
 		if err != nil {
-			panic(err.String() + val)
+			panic(err.Error() + val)
 		}
 		st.ArrivalTime = v
 		break
@@ -147,14 +145,14 @@ func (st *StopTime) setField(fieldName, val string) {
 		st.Stop = st.feed.StopCollection.Stops[val]
 		break
 	case "stop_sequence":
-		v, _ := strconv.Atoui(val)
-		st.StopSequence = v
+		v, _ := strconv.Atoi(val)
+		st.StopSequence = uint(v)
 		break
 	case "stop_headsign":
 		st.Headsign = val
 		break
 	case "pickup_type":
-		v, _ := strconv.Atoui(val) // Should panic on error !
+		v, _ := strconv.Atoi(val) // Should panic on error !
 		if v == 0 {
 			st.PickupType = PickupRegular
 		} else if v == 1 {
@@ -166,7 +164,7 @@ func (st *StopTime) setField(fieldName, val string) {
 		}
 		break
 	case "drop_off_type":
-		v, _ := strconv.Atoui(val) // Should panic on error !
+		v, _ := strconv.Atoi(val) // Should panic on error !
 		if v == 0 {
 			st.DropOffType = DropOffRegular
 		} else if v == 1 {
@@ -178,7 +176,7 @@ func (st *StopTime) setField(fieldName, val string) {
 		}
 		break
 	case "shape_dist_traveled":
-		v, _ := strconv.Atof64(val) // Should panic on error !
+		v, _ := strconv.ParseFloat(val, 64) // Should panic on error !
 		st.ShapeDistTraveled = v
 		break
 
@@ -188,27 +186,26 @@ func (st *StopTime) setField(fieldName, val string) {
 	}
 }
 
-
-func timeOfDayStringToSeconds(t string) (uint, os.Error) {
-	components := strings.Split(t, ":", 3)
-	hours, err := strconv.Atoui(components[0])
+func timeOfDayStringToSeconds(t string) (uint, error) {
+	components := strings.SplitN(t, ":", 3)
+	hours, err := strconv.Atoi(components[0])
 	if err != nil {
-		hours, err = strconv.Atoui(string(components[0][1]))
+		hours, err = strconv.Atoi(string(components[0][1]))
 		if err != nil {
 			return 0, err
 		}
 	}
-	minutes, err := strconv.Atoui(components[1])
+	minutes, err := strconv.Atoi(components[1])
 	if err != nil {
 		return 0, err
 	}
-	seconds, err := strconv.Atoui(components[2])
+	seconds, err := strconv.Atoi(components[2])
 	if err != nil {
 		return 0, err
 	}
-	return (hours * 60 * 60) + (minutes * 60) + seconds, nil
+	return uint((hours * 60 * 60) + (minutes * 60) + seconds), nil
 }
 
 func timeOfDayInSeconds(t *time.Time) uint {
-	return uint(t.Hour*60*60 + t.Minute*60 + t.Second)
+	return uint(t.Hour()*60*60 + t.Minute()*60 + t.Second())
 }

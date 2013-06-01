@@ -1,10 +1,10 @@
 package gtfs
 
 import (
-	"os"
-	"io"
 	"bufio"
+	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"log"
@@ -18,10 +18,9 @@ type ParseError struct {
 	FileName   string
 }
 
-func (pe *ParseError) String() string {
+func (pe *ParseError) Error() string {
 	return fmt.Sprintf("ParseError in file %v at line %d: %v", pe.FileName, pe.LineNumber, pe.Message)
 }
-
 
 type settableThroughField interface {
 	setField(fieldName string, value string)
@@ -33,7 +32,7 @@ func fieldsSetter(model settableThroughField, fieldKeys, fieldValues []string) {
 	}
 }
 
-func (p *Parser) parse(r io.Reader, recordHandler func(k, v []string)) os.Error {
+func (p *Parser) parse(r io.Reader, recordHandler func(k, v []string)) error {
 
 	lineNumber := 1
 
@@ -41,12 +40,12 @@ func (p *Parser) parse(r io.Reader, recordHandler func(k, v []string)) os.Error 
 
 	firstline, isPrefix, err := reader.ReadLine()
 	if err != nil {
-		perr := &ParseError{Message: err.String()}
+		perr := &ParseError{Message: err.Error()}
 		perr.FileName = string(*p)
 		perr.LineNumber = lineNumber
 		return perr
 	} else if isPrefix {
-		return os.NewError(fmt.Sprintf("First line too long (not handled yet, oups): \"%v\"", p))
+		return errors.New(fmt.Sprintf("First line too long (not handled yet, oups): \"%v\"", p))
 	}
 
 	fieldKeys, perr := p.parseLine(firstline)
@@ -61,7 +60,7 @@ func (p *Parser) parse(r io.Reader, recordHandler func(k, v []string)) os.Error 
 		if err != nil {
 			panic(err)
 		} else if isPrefix {
-			return os.NewError(fmt.Sprintf("First line too long (not handled yet, oups): \"%v\"", p))
+			return errors.New(fmt.Sprintf("First line too long (not handled yet, oups): \"%v\"", p))
 		}
 
 		lineNumber = lineNumber + 1
@@ -83,11 +82,10 @@ func (p *Parser) parse(r io.Reader, recordHandler func(k, v []string)) os.Error 
 			recordHandler(fieldKeys, fieldValues)
 		}
 
-
 		line, isPrefix, err = reader.ReadLine()
 	}
 
-	if err != nil && err != os.EOF {
+	if err != nil && err != io.EOF {
 		return err
 	}
 
@@ -97,7 +95,7 @@ func (p *Parser) parse(r io.Reader, recordHandler func(k, v []string)) os.Error 
 func (p *Parser) parseLine(line []byte) (tokens []string, err *ParseError) {
 	reader := bufio.NewReader(strings.NewReader(string(line)))
 	tokens = make([]string, 0, 10)
-	var previousRune int
+	var previousRune rune
 	field := ""
 	startedWithQuote := false
 	charIndex := 0
@@ -105,10 +103,10 @@ func (p *Parser) parseLine(line []byte) (tokens []string, err *ParseError) {
 	rune, size, error := reader.ReadRune()
 	for {
 		if error != nil || size == 0 {
-			if error == os.EOF || size == 0 { // EOF is the gracious end of Read. Same for ReadRune? Seems like size==0 is replacing that
+			if error == io.EOF || size == 0 { // EOF is the gracious end of Read. Same for ReadRune? Seems like size==0 is replacing that
 				return append(tokens, field), nil
 			}
-			return nil, &ParseError{Message: error.String()}
+			return nil, &ParseError{Message: error.Error()}
 		}
 
 		switch rune {
