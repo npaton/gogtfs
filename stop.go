@@ -3,6 +3,7 @@ package gtfs
 import (
 	"strconv"
 	"time"
+	"math"
 )
 
 // Stop.LocationType possible values:
@@ -95,6 +96,14 @@ func (s *Stop) NextStopTimes(time *time.Time, count int) (stopTimes []*StopTime)
 		}
 	}
 	return
+}
+
+func (s *Stop) DistanceToCoordinate(lat, lon float64) float64 {
+	earth_radius := 6371000.0
+	to_rad := math.Pi / 180.0
+	return math.Acos(math.Sin(s.Lat * to_rad) * math.Sin(lat * to_rad) +
+                              math.Cos(s.Lat * to_rad) * math.Cos(lat * to_rad) *
+                              math.Cos((lon - s.Lon) * to_rad)) * earth_radius;
 }
 
 func (s *Stop) setField(fieldName, val string) {
