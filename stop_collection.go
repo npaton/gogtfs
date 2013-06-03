@@ -2,7 +2,6 @@ package gtfs
 
 type StopCollection struct {
 	Stops map[string]*Stop
-	
 }
 
 func NewStopCollection() StopCollection {
@@ -32,8 +31,11 @@ func (c *StopCollection) StopsByName(name string) (results []*Stop) {
 
 func (c *StopCollection) RandomStop() (stopX *Stop) {
 	stopsCount := 0
-	for _, stopX = range c.Stops { 
-		if stopsCount > 10 { break }; stopsCount+=1
+	for _, stopX = range c.Stops {
+		if stopsCount > 10 {
+			break
+		}
+		stopsCount += 1
 	}
 	return
 }

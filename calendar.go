@@ -1,11 +1,10 @@
 package gtfs
 
 import (
-	"time"
-	"strconv"
 	"fmt"
+	"strconv"
+	"time"
 	// "log"
-	"os"
 )
 
 // calendar.txt
@@ -74,8 +73,7 @@ type Calendar struct {
 func (c *Calendar) ValidOn(intday int, t *time.Time) bool {
 	if c.StartDate <= intday && c.EndDate >= intday {
 
-
-		switch t.Weekday {
+		switch t.Weekday() {
 		case time.Monday:
 			return c.Monday
 		case time.Tuesday:
@@ -98,7 +96,6 @@ func (c *Calendar) ValidOn(intday int, t *time.Time) bool {
 
 	return false
 }
-
 
 func (c *Calendar) setField(fieldName, val string) {
 	// log.Println("setField", fieldName, value)
@@ -163,21 +160,20 @@ func (c *Calendar) setField(fieldName, val string) {
 		v, _ := strconv.Atoi(val) // Should panic on error !
 		c.EndDate = v
 		break
-	// case "start_date":
-	// 	c.StartDate = val
-	// 	break
-	// case "end_date":
-	// 	c.EndDate = val
-	// 	break
+		// case "start_date":
+		// 	c.StartDate = val
+		// 	break
+		// case "end_date":
+		// 	c.EndDate = val
+		// 	break
 	}
 }
-
 
 func TimeToStringDate(time *time.Time) string {
 	return time.Format("20060102")
 }
 
-func StringDateToTime(date string) (*time.Time, os.Error) {
+func StringDateToTime(date string) (time.Time, error) {
 	return time.Parse("20060102", date) // Time parsing almost sucks
 }
 

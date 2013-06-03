@@ -3,17 +3,17 @@ package main
 // import _ "http/pprof"
 
 import (
-	"log"
-	"gtfs"
+	"code.google.com/p/go.net/websocket"
+	"encoding/json"
 	"flag"
-	"os"
-	"strings"
-	"path/filepath"
-	"http"
 	"fmt"
-	"json"
+	"github.com/nicolaspaton/gogtfs"
+	"log"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
-	"websocket"
 )
 
 var (
@@ -32,14 +32,12 @@ func init() {
 	feeds = make(map[string]*gtfs.Feed, 10)
 }
 
-
 type Preferences struct {
 	Paths []string
 }
 
 func (p *Preferences) saveToDisk() {
 }
-
 
 func discoverGtfsPaths(path string) (results []string) {
 	// log.Println("discoverGtfsPaths")
@@ -49,7 +47,7 @@ func discoverGtfsPaths(path string) (results []string) {
 		return
 	}
 
-	if fileInfo.IsDirectory() {
+	if fileInfo.IsDir() {
 		file, err := os.Open(path)
 		if err != nil {
 			return
@@ -65,35 +63,35 @@ func discoverGtfsPaths(path string) (results []string) {
 		foundCalendar := false
 		foundFiles := make([]string, 0, len(requiredFiles))
 		for _, fi := range fileInfos {
-			if fi.IsDirectory() {
-				subdirectoryResults := discoverGtfsPaths(path + "/" + fi.Name)
+			name := fi.Name()
+			if fi.IsDir() {
+				subdirectoryResults := discoverGtfsPaths(path + "/" + name)
 				for _, newpath := range subdirectoryResults {
 					results = append(results, newpath)
 				}
-			} else if filepath.Ext(fi.Name) == ".zip" {
-				results = append(results, path+"/"+fi.Name)
+			} else if filepath.Ext(name) == ".zip" {
+				results = append(results, path+"/"+name)
 			} else {
 				for _, f := range requiredFiles {
-					if fi.Name == f { // This loops a little too much but hey...
+					if name == f { // This loops a little too much but hey...
 						foundFiles = append(foundFiles, f)
 					}
 				}
 				if !foundCalendar {
 					for _, f := range requiredCalendarFiles {
-						if fi.Name == f {
+						if name == f {
 							foundCalendar = true
 						}
 					}
 				}
-				
+
 			}
 		}
-		
+
 		if len(foundFiles) == len(requiredFiles) && foundCalendar {
 			results = append(results, path)
 		}
-		
-		
+
 	} else {
 		if filepath.Ext(path) == ".zip" {
 			results = append(results, path)
@@ -110,7 +108,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	pathsAll := strings.Split(*pathsString, ",", -1)
+	pathsAll := strings.Split(*pathsString, ",")
 	paths := make([]string, 0, len(pathsAll))
 
 	for _, path := range pathsAll {
@@ -200,7 +198,6 @@ func Index(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, "web/index.html")
 }
 
-
 func Shapes(w http.ResponseWriter, r *http.Request) {
 	log.Println("Shapes")
 
@@ -226,8 +223,8 @@ func Trips(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "{}")
 		return
 	}
-
-	ts := feeds[currentFeed].TripsForDay(time.LocalTime())
+	now := time.Now().Local()
+	ts := feeds[currentFeed].TripsForDay(&now)
 	trips, err := json.Marshal(ts)
 
 	if err != nil {
@@ -255,7 +252,6 @@ func LoadFeed(w http.ResponseWriter, r *http.Request) {
 
 	return // http.Redirect(w, r, r.Referer, http.StatusTemporaryRedirect) // Come back
 }
-
 
 type WebSocketContext struct {
 	ws          *websocket.Conn
