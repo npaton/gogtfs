@@ -4,7 +4,6 @@ import (
 	"strconv"
 )
 
-
 // Transfert.TransferType possible values:
 const (
 	// 0 or (empty) - This is a recommended transfer point between two routes.
@@ -72,7 +71,7 @@ func (t *Transfer) setField(fieldName, val string) {
 		t.MinTransferTime = v
 		break
 	case "route_type":
-		v, _ := strconv.Atoui(val) // Should panic on error !
+		v, _ := strconv.Atoi(val) // Should panic on error !
 		if v == 0 {
 			t.TransferType = TransferRecommended
 		} else if v == 1 {

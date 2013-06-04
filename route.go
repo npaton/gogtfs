@@ -86,7 +86,6 @@ type Route struct {
 	feed *Feed
 }
 
-
 func (r *Route) setField(fieldName, val string) {
 	// log.Println("setField", fieldName, value)
 	switch fieldName {
@@ -106,7 +105,7 @@ func (r *Route) setField(fieldName, val string) {
 		r.Desc = val
 		break
 	case "route_type":
-		v, _ := strconv.Atoui(val) // Should panic on error !
+		v, _ := strconv.Atoi(val) // Should panic on error !
 		if v == 0 {
 			r.Type = Tram
 		} else if v == 1 {

@@ -68,11 +68,11 @@ func (sp *ShapePoint) setField(fieldName, val string) {
 		sp.Id = val
 		break
 	case "shape_pt_lat":
-		v, _ := strconv.Atof64(val) // Should panic on error !
+		v, _ := strconv.ParseFloat(val, 64) // Should panic on error !
 		sp.Lat = v
 		break
 	case "shape_pt_lon":
-		v, _ := strconv.Atof64(val) // Should panic on error !
+		v, _ := strconv.ParseFloat(val, 64) // Should panic on error !
 		sp.Lon = v
 		break
 	case "shape_pt_sequence":
@@ -80,7 +80,7 @@ func (sp *ShapePoint) setField(fieldName, val string) {
 		sp.PointSequence = v
 		break
 	case "shape_dist_traveled":
-		v, _ := strconv.Atof64(val) // Should panic on error !
+		v, _ := strconv.ParseFloat(val, 64) // Should panic on error !
 		sp.DistanceTraveled = v
 		break
 	}

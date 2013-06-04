@@ -46,7 +46,6 @@ func (f *Frequency) calculateDayTimeRange() {
 	f.DayRange = DayRange{f.StartTime, f.EndTime}
 }
 
-
 func (f *Frequency) setField(fieldName, val string) {
 	// log.Println("setField", fieldName, value)
 	switch fieldName {
@@ -56,7 +55,7 @@ func (f *Frequency) setField(fieldName, val string) {
 	case "start_time":
 		v, err := timeOfDayStringToSeconds(val)
 		if err != nil {
-			panic(err.String() + val)
+			panic(err.Error() + val)
 		}
 		f.StartTime = v
 		break
@@ -68,10 +67,8 @@ func (f *Frequency) setField(fieldName, val string) {
 		f.EndTime = v
 		break
 	case "headway_secs":
-		v, _ := strconv.Atoui(val)
-		f.HeadwaySecs = v
+		v, _ := strconv.Atoi(val)
+		f.HeadwaySecs = uint(v)
 		break
 	}
 }
-
-

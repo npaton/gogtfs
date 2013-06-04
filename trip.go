@@ -1,12 +1,11 @@
 package gtfs
 
 import (
+	"fmt"
 	"strconv"
 	"time"
-	"fmt"
 	// "log"
 )
-
 
 // Trip.Direction possible values: (There is no "in" or "out" directions, they symbolize two opposite directions)
 const (
@@ -72,17 +71,18 @@ type Trip struct {
 	DayRange
 
 	StopTimes []*StopTime
-	
+
 	Frequencies []Frequency
-	
 
 	feed *Feed
 }
 
-func (t *Trip) NextStopTimeWithTransfer(fromstop, after *Stop)  (stopTime *StopTime, cost int, doesRun bool) {
+func (t *Trip) NextStopTimeWithTransfer(fromstop, after *Stop) (stopTime *StopTime, cost int, doesRun bool) {
 	// Looking for stop after fromstop in trip sequence that has attached stoptimes
-	if fromstop == nil { return nil, 0, false }
-	foundFrom  := false
+	if fromstop == nil {
+		return nil, 0, false
+	}
+	foundFrom := false
 	foundAfter := false
 	var previousStopTime *StopTime
 	for _, st := range t.StopTimes {
@@ -108,9 +108,13 @@ func (t *Trip) NextStopTimeWithTransfer(fromstop, after *Stop)  (stopTime *StopT
 }
 
 func (t *Trip) RunsFromTo(fromstop, tostop *Stop) (stopTime *StopTime, cost int, doesRun bool) {
-	if fromstop == nil { return nil, 0, false }
-	if tostop == nil { return nil, 0, false }
-	
+	if fromstop == nil {
+		return nil, 0, false
+	}
+	if tostop == nil {
+		return nil, 0, false
+	}
+
 	foundFrom := false
 	var previousStopTime *StopTime
 	for _, st := range t.StopTimes {
@@ -133,7 +137,7 @@ func (t *Trip) RunsFromTo(fromstop, tostop *Stop) (stopTime *StopTime, cost int,
 	return nil, 0, false
 }
 func (t *Trip) RunsAccross(stop *Stop) bool {
-	
+
 	for _, st := range t.StopTimes {
 		if st.Stop.Id == stop.Id {
 			return true
@@ -176,7 +180,7 @@ func (t *Trip) AddStopTime(newStopTime *StopTime) {
 
 type DayRange struct {
 	from uint // time of day in seconds since midnight
-	to uint // in seconds
+	to   uint // in seconds
 }
 
 func (a *DayRange) Intersects(b *DayRange) bool {
@@ -216,7 +220,7 @@ func (t *Trip) HasShape() bool {
 
 func (t *Trip) RunsOn(date *time.Time) (runs bool) {
 	runs = false // Unnecessary, default init to false, no?
-	intdate, _ := strconv.Atoi(fmt.Sprintf("%04d", date.Year) + fmt.Sprintf("%02d",date.Month) + fmt.Sprintf("%02d",date.Day)) 
+	intdate, _ := strconv.Atoi(fmt.Sprintf("%04d", date.Year()) + fmt.Sprintf("%02d", date.Month()) + fmt.Sprintf("%02d", date.Day()))
 	if calendar, ok := t.feed.Calendars[t.serviceId]; ok {
 		if calendar.ValidOn(intdate, date) {
 			runs = true
@@ -240,7 +244,6 @@ func (t *Trip) afterInit() {
 	t.Frequencies = make([]Frequency, 0)
 }
 
-
 func (t *Trip) setField(fieldName, val string) {
 	// log.Println("setField", fieldName, value)
 	switch fieldName {
@@ -260,7 +263,7 @@ func (t *Trip) setField(fieldName, val string) {
 		t.ShortName = val
 		break
 	case "direction_id":
-		v, _ := strconv.Atoui(val) // Should panic on error !
+		v, _ := strconv.Atoi(val) // Should panic on error !
 		if v == 0 {
 			t.Direction = DirectionOut
 		} else if v == 1 {
